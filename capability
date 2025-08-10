@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Curva Normal Interactiva - Green Belt</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f5f7fa;
+    margin: 20px;
+    color: #333;
+  }
+  #container {
+    max-width: 900px;
+    margin: auto;
+    background: #fff;
+    padding: 20px 30px 40px 30px;
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    position: relative;
+  }
+  .controls-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .sliders {
+    flex: 0 0 40%;
+  }
+  .slider-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .slider-group label {
+    flex-basis: 35%;
+    font-weight: 600;
+  }
+  .slider-group input[type=range] {
+    flex-basis: 50%;
+    margin-right: 10px;
+  }
+  .slider-group input[type=number] {
+    width: 70px;
+    padding: 5px;
+    font-size: 14px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+  }
+  .results {
+    flex: 0 0 60%;
+    background: #e9ecef;
+    border-radius: 10px;
+    padding: 15px 20px;
+    font-size: 14px;
+    color: #333;
+    line-height: 1.5;
+    height: fit-content;
+  }
+  .results .cpk-good {
+    color: #2e7d32;
+    font-weight: 700;
+  }
+  .results .cpk-bad {
+    color: #d32f2f;
+    font-weight: 700;
+  }
+  canvas {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fff;
+    display: block;
+    margin: 20px auto 0 auto;
+  }
+</style>
+</head>
+<body>
+<div id="container">
+  <h2>Curva Normal Interactiva - Green Belt Six Sigma</h2>
+
+  <div class="controls-row">
+    <div class="sliders">
+      <div class="slider-group">
+        <label for="media">Media (μ):</label>
+        <input type="range" id="media" min="0" max="100" step="0.1" value="50" />
+        <input type="number" id="mediaNum" min="0" max="100" step="0.1" value="50" />
+      </div>
+
+      <div class="slider-group">
+        <label for="li">Límite Inferior (LI):</label>
+        <input type="range" id="li" min="0" max="100" step="0.1" value="40" />
+        <input type="number" id="liNum" min="0" max="100" step="0.1" value="40" />
+      </div>
+
+      <div class="slider-group">
+        <label for="ls">Límite Superior (LS):</label>
+        <input type="range" id="ls" min="0" max="100" step="0.1" value="60" />
+        <input type="number" id="lsNum" min="0" max="100" step="0.1" value="60" />
+      </div>
+
+      <div class="slider-group">
+        <label for="sigma">Desvío estándar (σ):</label>
+        <input type="range" id="sigma" min="0.1" max="10" step="0.1" value="5" />
+        <input type="number" id="sigmaNum" min="0.1" max="10" step="0.1" value="5" />
+      </div>
+    </div>
+
+    <div class="results" id="results">
+      <!-- Aquí se muestran resultados actualizados -->
+      Nivel σ (ajustado): <span id="sigmaCalc">-</span><br/>
+      Cp: <span id="cp">-</span><br/>
+      Cpk: <span id="cpk" class="">-</span><br/>
+      DPMO: <span id="dpmo">-</span><br/>
+      % < LI: <span id="pLower">-</span><br/>
+      % > LS: <span id="pUpper">-</span><br/>
+      % fuera: <span id="percOut">-</span>
+    </div>
+  </div>
+
+  <canvas id="canvas" width="800" height="350"></canvas>
+</div>
+
+<script>
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  const mediaSlider = document.getElementById('media');
+  const liSlider = document.getElementById('li');
+  const lsSlider = document.getElementById('ls');
+  const sigmaSlider = document.getElementById('sigma');
+
+  const mediaNum = document.getElementById('mediaNum');
+  const liNum = document.getElementById('liNum');
+  const lsNum = document.getElementById('lsNum');
+  const sigmaNum = document.getElementById('sigmaNum');
+
+  const sigmaCalcSpan = document.getElementById('sigmaCalc');
+  const cpSpan = document.getElementById('cp');
+  const cpkSpan = document.getElementById('cpk');
+  const dpmoSpan = document.getElementById('dpmo');
+  const pLowerSpan = document.getElementById('pLower');
+  const pUpperSpan = document.getElementById('pUpper');
+  const percOutSpan = document.getElementById('percOut');
+
+  function normPDF(x, mu, sigma) {
+    return (1 / (sigma * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * ((x - mu) / sigma) ** 2);
+  }
+
+  function normCDF(x, mu, sigma) {
+    return 0.5 * (1 + erf((x - mu) / (sigma * Math.sqrt(2))));
+  }
+
+  function erf(x) {
+    const sign = x >= 0 ? 1 : -1;
+    x = Math.abs(x);
+    const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741,
+          a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+    const t = 1 / (1 + p * x);
+    const y = 1 - (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x));
+    return sign * y;
+  }
+
+  function calcCp(ls, li, sigma) {
+    return (ls - li) / (6 * sigma);
+  }
+  function calcCpk(mu, ls, li, sigma) {
+    return Math.min((ls - mu) / (3 * sigma), (mu - li) / (3 * sigma));
+  }
+
+  function calcDPMO(mu, sigma, li, ls) {
+    const pLower = normCDF(li, mu, sigma);
+    const pUpper = 1 - normCDF(ls, mu, sigma);
+    return (pLower + pUpper) * 1e6;
+  }
+
+  const sigmaTable = [
+    [0.0002, 6.5],
+    [3.4, 6.0],
+    [233, 5.0],
+    [6210, 4.0],
+    [30800, 3.5],
+    [66807, 3.0],
+    [135000, 2.5],
+    [308538, 2.0],
+    [690000, 1.5],
+    [1350000, 1.0],
+  ];
+
+  function sigmaFromDPMO(dpmo) {
+    if (dpmo <= sigmaTable[0][0]) return sigmaTable[0][1];
+    for (let i = 1; i < sigmaTable.length; i++) {
+      if (dpmo <= sigmaTable[i][0]) {
+        const x0 = sigmaTable[i-1][0], y0 = sigmaTable[i-1][1];
+        const x1 = sigmaTable[i][0], y1 = sigmaTable[i][1];
+        return y0 + (y1 - y0) * (dpmo - x0) / (x1 - x0);
+      }
+    }
+    return sigmaTable[sigmaTable.length - 1][1];
+  }
+
+  function drawCurve(mu, sigma, li, ls) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const margin = 50;
+    const w = canvas.width - 2 * margin;
+    const h = canvas.height - 100;
+
+    const xMin = li - 0.15 * li;
+    const xMax = ls + 0.15 * ls;
+
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.font = '12px Arial';
+    ctx.fillStyle = '#333';
+
+    // Eje X
+    ctx.beginPath();
+    ctx.moveTo(margin, canvas.height - margin);
+    ctx.lineTo(canvas.width - margin, canvas.height - margin);
+    ctx.stroke();
+
+    const stepsX = 10;
+    for (let i = 0; i <= stepsX; i++) {
+      const xVal = xMin + (xMax - xMin) * i / stepsX;
+      const xPos = margin + (w * i / stepsX);
+      ctx.moveTo(xPos, canvas.height - margin);
+      ctx.lineTo(xPos, canvas.height - margin + 6);
+      ctx.stroke();
+      ctx.fillText(xVal.toFixed(1), xPos - 15, canvas.height - margin + 20);
+    }
+
+    // Muestreo fino para precisión
+    const points = [];
+    let maxPDF = 0;
+    for (let i = 0; i <= w; i++) {
+      const x = xMin + ((xMax - xMin) * i / w);
+      const y = normPDF(x, mu, sigma);
+      if (y > maxPDF) maxPDF = y;
+      points.push({x, y});
+    }
+
+    // Área izquierda (x < LI)
+    ctx.beginPath();
+    ctx.moveTo(margin, canvas.height - margin);
+    for(let i=0; i < points.length; i++) {
+      if(points[i].x > li) break;
+      const px = margin + ((points[i].x - xMin) / (xMax - xMin)) * w;
+      const py = canvas.height - margin - (points[i].y / maxPDF) * h;
+      ctx.lineTo(px, py);
+    }
+    ctx.lineTo(margin + ((li - xMin) / (xMax - xMin)) * w, canvas.height - margin);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+    ctx.fill();
+
+    // Área derecha (x > LS)
+    ctx.beginPath();
+    const startX = margin + ((ls - xMin) / (xMax - xMin)) * w;
+    ctx.moveTo(startX, canvas.height - margin);
+    for(let i=0; i < points.length; i++) {
+      if(points[i].x < ls) continue;
+      const px = margin + ((points[i].x - xMin) / (xMax - xMin)) * w;
+      const py = canvas.height - margin - (points[i].y / maxPDF) * h;
+      ctx.lineTo(px, py);
+    }
+    ctx.lineTo(margin + w, canvas.height - margin);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+    ctx.fill();
+
+    // Curva principal en azul
+    ctx.beginPath();
+    ctx.strokeStyle = '#1a73e8';
+    ctx.lineWidth = 3;
+    points.forEach((pt, i) => {
+      const px = margin + ((pt.x - xMin) / (xMax - xMin)) * w;
+      const py = canvas.height - margin - (pt.y / maxPDF) * h;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+
+    // Límites en rojo
+    ctx.strokeStyle = '#d32f2f';
+    ctx.lineWidth = 2;
+    [li, ls].forEach(limit => {
+      const px = margin + ((limit - xMin) / (xMax - xMin)) * w;
+      ctx.beginPath();
+      ctx.moveTo(px, canvas.height - margin);
+      ctx.lineTo(px, canvas.height - margin - h);
+      ctx.stroke();
+      ctx.fillStyle = '#d32f2f';
+      ctx.fillText(limit.toFixed(1), px - 15, canvas.height - margin - h - 10);
+      ctx.fillStyle = '#333';
+    });
+
+    // Media línea punteada verde
+    ctx.strokeStyle = '#2e7d32';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 6]);
+    const pxMed = margin + ((mu - xMin) / (xMax - xMin)) * w;
+    ctx.beginPath();
+    ctx.moveTo(pxMed, canvas.height - margin);
+    ctx.lineTo(pxMed, canvas.height - margin - h);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#2e7d32';
+    ctx.fillText(`μ=${mu.toFixed(1)}`, pxMed - 25, canvas.height - margin - h - 10);
+  }
+
+  function update() {
+    let mu = parseFloat(mediaNum.value);
+    let li = parseFloat(liNum.value);
+    let ls = parseFloat(lsNum.value);
+    let sigma = parseFloat(sigmaNum.value);
+
+    mediaSlider.value = mu;
+    liSlider.value = li;
+    lsSlider.value = ls;
+    sigmaSlider.value = sigma;
+
+    if (li >= ls || sigma <= 0) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#d32f2f';
+      ctx.font = '20px Segoe UI, Tahoma, Geneva, Verdana, sans-serif';
+      ctx.fillText('Verifique que LI < LS y σ > 0', 50, 100);
+      sigmaCalcSpan.textContent = '-';
+      cpSpan.textContent = '-';
+      cpkSpan.textContent = '-';
+      dpmoSpan.textContent = '-';
+      pLowerSpan.textContent = '-';
+      pUpperSpan.textContent = '-';
+      percOutSpan.textContent = '-';
+      cpkSpan.className = '';
+      return;
+    }
+
+    drawCurve(mu, sigma, li, ls);
+
+    const cp = calcCp(ls, li, sigma);
+    const cpk = calcCpk(mu, ls, li, sigma);
+    const pLower = normCDF(li, mu, sigma);
+    const pUpper = 1 - normCDF(ls, mu, sigma);
+    const percOut = pLower + pUpper;
+    const dpmo = percOut * 1e6;
+
+    const sigmaCalc = sigmaFromDPMO(dpmo);
+
+    // Actualizo resultados en el div
+    sigmaCalcSpan.textContent = sigmaCalc.toFixed(2);
+    cpSpan.textContent = cp.toFixed(3);
+    cpkSpan.textContent = cpk.toFixed(3);
+    dpmoSpan.textContent = (dpmo / 1000).toFixed(1) + 'k';
+    pLowerSpan.textContent = (pLower * 100).toFixed(3) + '%';
+    pUpperSpan.textContent = (pUpper * 100).toFixed(3) + '%';
+    percOutSpan.textContent = (percOut * 100).toFixed(3) + '%';
+
+    // Color cpk
+    if (cpk < 1) {
+      cpkSpan.className = 'cpk-bad';
+    } else {
+      cpkSpan.className = 'cpk-good';
+    }
+  }
+
+  function syncAndUpdate(from, to) {
+    to.value = from.value;
+    update();
+  }
+
+  mediaSlider.addEventListener('input', () => syncAndUpdate(mediaSlider, mediaNum));
+  mediaNum.addEventListener('input', () => syncAndUpdate(mediaNum, mediaSlider));
+
+  liSlider.addEventListener('input', () => syncAndUpdate(liSlider, liNum));
+  liNum.addEventListener('input', () => syncAndUpdate(liNum, liSlider));
+
+  lsSlider.addEventListener('input', () => syncAndUpdate(lsSlider, lsNum));
+  lsNum.addEventListener('input', () => syncAndUpdate(lsNum, lsSlider));
+
+  sigmaSlider.addEventListener('input', () => syncAndUpdate(sigmaSlider, sigmaNum));
+  sigmaNum.addEventListener('input', () => syncAndUpdate(sigmaNum, sigmaSlider));
+
+  update();
+</script>
+</body>
+</html>
