@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simulación Ley de Little - Diseño Horizontal</title>
+<style>
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#f0f2f5; margin:20px; }
+  .container {
+    max-width: 900px;
+    margin: auto;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    display: grid;
+    grid-template-columns: 40% 60%;
+    grid-template-rows: auto auto 1fr;
+    gap: 20px 40px;
+  }
+  h2 {
+    grid-column: 1 / 3;
+    margin-bottom: 0;
+  }
+  .inputs {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+  .input-group {
+    margin-bottom: 16px;
+  }
+  label {
+    font-weight: 600;
+    margin-bottom: 6px;
+    display: block;
+  }
+  input[type=range] {
+    width: 100%;
+    -webkit-appearance: none;
+    height: 8px;
+    border-radius: 5px;
+    background: #d3d3d3;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: #3498db;
+    cursor: pointer;
+    border-radius: 50%;
+    border: none;
+  }
+  .val-display {
+    font-weight: 500;
+    color: #2980b9;
+    margin-left: 8px;
+    font-size: 0.9rem;
+  }
+  #result {
+    white-space: pre-wrap;
+    color: #2c3e50;
+    background: #f9f9f9;
+    border-radius: 8px;
+    padding: 15px;
+    height: 100%;
+    box-sizing: border-box;
+    font-size: 1rem;
+    line-height: 1.3;
+    font-weight: normal;
+  }
+  #canvas {
+    grid-column: 1 / 3;
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 10px;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h2>Simulación Ley de Little - 3 Procesos Interactivo</h2>
+
+  <div class="inputs">
+    <div class="input-group">
+      <label for="tp1">Tiempo Proceso 1 (segundos):
+        <span id="valTp1" class="val-display">10</span>
+      </label>
+      <input type="range" id="tp1" min="1" max="25" step="1" value="10" />
+    </div>
+
+    <div class="input-group">
+      <label for="tp2">Tiempo Proceso 2 (segundos):
+        <span id="valTp2" class="val-display">15</span>
+      </label>
+      <input type="range" id="tp2" min="1" max="25" step="1" value="15" />
+    </div>
+
+    <div class="input-group">
+      <label for="tp3">Tiempo Proceso 3 (segundos):
+        <span id="valTp3" class="val-display">8</span>
+      </label>
+      <input type="range" id="tp3" min="1" max="25" step="1" value="8" />
+    </div>
+
+    <div class="input-group">
+      <label for="wip">WIP Total:
+        <span id="valWip" class="val-display">10</span>
+      </label>
+      <input type="range" id="wip" min="1" max="50" step="1" value="10" />
+    </div>
+  </div>
+
+  <div id="result">
+    <!-- Resultados dinámicos aquí -->
+  </div>
+
+  <canvas id="canvas" width="900" height="300"></canvas>
+</div>
+
+<script>
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const inputs = ['tp1', 'tp2', 'tp3', 'wip'];
+  const valDisplays = {
+    tp1: document.getElementById('valTp1'),
+    tp2: document.getElementById('valTp2'),
+    tp3: document.getElementById('valTp3'),
+    wip: document.getElementById('valWip')
+  };
+  const resultDiv = document.getElementById('result');
+
+  // Tamaño fijo de cajas
+  const boxWidth = 180;
+  const boxHeight = 100;
+
+  function drawProcess(x, y, label, timeSec, isCdb) {
+    ctx.fillStyle = isCdb ? '#e74c3c' : '#27ae60'; // rojo si cuello, verde si no
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 1;
+    ctx.fillRect(x, y, boxWidth, boxHeight);
+    ctx.strokeRect(x, y, boxWidth, boxHeight);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x + boxWidth / 2, y + 35);
+
+    ctx.font = '16px Segoe UI';
+    ctx.fillText(`Tiempo: ${timeSec} s`, x + boxWidth / 2, y + 70);
+  }
+
+  function drawWIP(x, y, count) {
+    const radius = 8;
+    const gap = 5;
+    const maxPerRow = 15;
+    ctx.fillStyle = '#2980b9'; // azul para WIP
+    let row = 0, col = 0;
+    for(let i=0; i<count; i++) {
+      let cx = x + col * (2*radius + gap);
+      let cy = y + row * (2*radius + gap);
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI*2);
+      ctx.fill();
+      col++;
+      if(col >= maxPerRow){
+        col = 0;
+        row++;
+      }
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Leer inputs y actualizar UI
+    const tpSec = inputs.slice(0,3).map(id => {
+      let val = parseInt(document.getElementById(id).value, 10);
+      valDisplays[id].textContent = val;
+      return val;
+    });
+    const wip = parseInt(document.getElementById('wip').value);
+    valDisplays.wip.textContent = wip;
+
+    // Cuello de botella = mayor tiempo (en segundos)
+    const maxTime = Math.max(...tpSec);
+    const cdbIndex = tpSec.indexOf(maxTime);
+
+    // Throughput (R) en unidades/segundo
+    const throughput = 1 / maxTime;
+    const throughputPerMin = throughput * 60;
+
+    // Lead Time (L) en segundos
+    const leadTime = wip / throughput;
+
+    // Dibujar procesos con tamaño fijo y color según cuello de botella
+    const baseY = 40;
+    const spacing = boxWidth + 50;
+    tpSec.forEach((time, i) => {
+      const isCdb = (i === cdbIndex);
+      drawProcess(50 + i * spacing, baseY, `Proceso ${i+1}`, time, isCdb);
+    });
+
+    // Dibujar WIP
+    drawWIP(50, 160, wip);
+
+    // Texto plano sin formato con referencia unidades/minuto en throughput
+    const textoPlano =
+`Identificación de Cuello de Botella:
+- Proceso ${cdbIndex + 1} con tiempo máximo = ${maxTime} segundos.
+
+Cálculo Throughput (R):
+- R = 1 / Tiempo Cuello de Botella = 1 / ${maxTime} = ${throughput.toFixed(5)} unidades/seg. (${throughputPerMin.toFixed(2)} unidades/min)
+
+Cálculo Lead Time (L):
+- L = WIP / R = ${wip} / ${throughput.toFixed(5)} = ${leadTime.toFixed(2)} segundos.
+
+Interpretación:
+Con WIP = ${wip} unidades y cuello de botella en proceso ${cdbIndex + 1}, el tiempo promedio en sistema es ${leadTime.toFixed(2)} segundos.`;
+
+    resultDiv.textContent = textoPlano;
+  }
+
+  inputs.forEach(id => {
+    document.getElementById(id).addEventListener('input', draw);
+  });
+
+  draw();
+</script>
+
+</body>
+</html>
