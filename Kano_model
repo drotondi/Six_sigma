@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Modelo de Kano - Práctica Interactiva</title>
+<style>
+  :root{--bg:#f5f7fa;--card:#ffffff;--muted:#6b7280}
+  body{font-family:Inter, Arial, sans-serif;background:var(--bg);margin:0;padding:20px;color:#111}
+  .container{max-width:1100px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 12px}
+  .toolbar{display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  label{font-size:13px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:4px}
+  .canvas-wrap{background:var(--card);padding:12px;border-radius:8px;box-shadow:0 4px 12px rgba(16,24,40,.06)}
+  canvas{display:block;width:600px;height:600px;border-radius:4px;border:1px solid #e6e9ef;cursor:crosshair;margin:0 auto}
+  .legend{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap}
+  .legend .item{display:flex;gap:6px;align-items:center;font-size:13px}
+  .dot{width:14px;height:6px;border-radius:3px}
+  .note{margin-top:10px;font-size:13px;color:var(--muted)}
+  .right-column{margin-left:auto;text-align:right}
+  .kano-box{background:#fff;border-radius:6px;padding:10px;border:1px solid #e6e9ef;text-align:left;font-size:13px;margin:4px 0}
+  button{background:#007bff;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;font-size:13px}
+  button:hover{background:#0056b3}
+  .exp-control{display:flex;align-items:center;gap:8px;margin:0 12px}
+  
+  .modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:none;justify-content:center;align-items:center;z-index:1000}
+  .modal-content{background:white;padding:20px;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.3);min-width:300px;max-width:400px}
+  .modal-header{font-size:16px;font-weight:bold;margin-bottom:15px;text-align:center}
+  .curve-options{display:flex;flex-direction:column;gap:10px;margin-bottom:15px}
+  .curve-option{padding:10px;border:2px solid #e6e9ef;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all 0.2s}
+  .curve-option:hover{background:#f8f9fa;border-color:#007bff}
+  .curve-option.selected{border-color:#007bff;background:#f0f8ff}
+  .modal-buttons{display:flex;gap:10px;justify-content:center}
+  .modal-btn{padding:8px 16px;border:none;border-radius:4px;cursor:pointer;font-size:13px}
+  .btn-cancel{background:#6c757d;color:white}
+  .btn-add{background:#007bff;color:white}
+  .btn-cancel:hover{background:#545b62}
+  .btn-add:hover{background:#0056b3}
+  .point-input{width:100%;padding:8px;margin:5px 0 15px 0;border:1px solid #ddd;border-radius:4px;font-size:14px}
+  
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{padding:10px;text-align:left;background:#f8f9fa;border-bottom:2px solid #e6e9ef;border-right:1px solid #e6e9ef}
+  td{padding:10px;border-bottom:1px solid #e6e9ef;border-right:1px solid #e6e9ef}
+  .empty-state{padding:20px;text-align:center;color:var(--muted);font-style:italic}
+  
+  @media (max-width: 768px) {
+    .toolbar{flex-direction:column;align-items:stretch}
+    .controls{justify-content:center}
+    .exp-control{margin:8px 0}
+    .right-column{margin-left:0;text-align:center}
+    canvas{width:100%;max-width:600px}
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Modelo de Kano — Interactivo</h1>
+    <div class="toolbar">
+      <div class="controls">
+        <label><input id="cbMust" type="checkbox" checked> Must‑be</label>
+        <label><input id="cbPerf" type="checkbox" checked> Performance</label>
+        <label><input id="cbAttr" type="checkbox" checked> Attractive</label>
+      </div>
+      <div class="exp-control">
+        <div>Modo ejercicio:</div>
+        <button id="btnClearPoints">Limpiar Puntos</button>
+      </div>
+      <div class="right-column">
+        <button id="btnReset">Reset</button>
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="kanoCanvas" width="600" height="600"></canvas>
+      <div class="legend">
+        <div class="item"><div class="dot" style="background:crimson"></div> Must‑be (cóncava)</div>
+        <div class="item"><div class="dot" style="background:steelblue"></div> Performance (lineal)</div>
+        <div class="item"><div class="dot" style="background:seagreen"></div> Attractive (exponencial)</div>
+        <div class="item"><div class="dot" style="background:#333"></div> Características agregadas</div>
+        <div style="flex:1"></div>
+        <div class="kano-box">
+          <strong>Attractive</strong><br>- no expresado<br>- causa delight
+        </div>
+        <div style="width:12px"></div>
+        <div class="kano-box">
+          <strong>Must‑be</strong><br>- implícito<br>- obvio
+        </div>
+        <div style="width:12px"></div>
+        <div class="kano-box">
+          <strong>Performance</strong><br>- articulado<br>- medible
+        </div>
+      </div>
+      <div class="note">Controles: active/desactive curvas y haga clic en el gráfico para agregar características sobre las curvas. Use "Limpiar Puntos" para resetear.</div>
+    </div>
+    
+    <!-- Tabla de características -->
+    <div class="canvas-wrap" style="margin-top:20px">
+      <h2 style="font-size:18px;margin-bottom:15px">Características Agregadas</h2>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Característica</th>
+              <th>Tipo de Curva</th>
+              <th>Descripción</th>
+              <th>Coord. X</th>
+              <th>Coord. Y</th>
+            </tr>
+          </thead>
+          <tbody id="pointsTableBody">
+            <tr>
+              <td colspan="6" class="empty-state">
+                No hay características agregadas aún. Haga clic en el gráfico para comenzar.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para seleccionar curva -->
+  <div id="curveModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">Agregar característica</div>
+      <input type="text" id="pointName" class="point-input" placeholder="Nombre de la característica (ej: Velocidad, Seguridad, etc.)" maxlength="30">
+      <div class="curve-options">
+        <div class="curve-option" data-curve="must">
+          <div class="dot" style="background:crimson"></div>
+          <div>
+            <strong>Must-be</strong><br>
+            <small>Requisito básico - causa insatisfacción si no se cumple</small>
+          </div>
+        </div>
+        <div class="curve-option" data-curve="performance">
+          <div class="dot" style="background:steelblue"></div>
+          <div>
+            <strong>Performance</strong><br>
+            <small>Requisito lineal - más es mejor</small>
+          </div>
+        </div>
+        <div class="curve-option" data-curve="attractive">
+          <div class="dot" style="background:seagreen"></div>
+          <div>
+            <strong>Attractive</strong><br>
+            <small>Requisito que genera deleite inesperado</small>
+          </div>
+        </div>
+      </div>
+      <div class="modal-buttons">
+        <button class="modal-btn btn-cancel" id="btnCancel">Cancelar</button>
+        <button class="modal-btn btn-add" id="btnAdd">Agregar</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+// Canvas setup
+const canvas = document.getElementById('kanoCanvas');
+const ctx = canvas.getContext('2d');
+
+canvas.width = 600;
+canvas.height = 600;
+
+const margin = {left: 80, right: 80, top: 60, bottom: 80};
+const W = 600;
+const H = 600;
+const plotW = W - margin.left - margin.right;
+const plotH = H - margin.top - margin.bottom;
+
+// UI elements
+const cbMust = document.getElementById('cbMust');
+const cbPerf = document.getElementById('cbPerf');
+const cbAttr = document.getElementById('cbAttr');
+const btnReset = document.getElementById('btnReset');
+const btnClearPoints = document.getElementById('btnClearPoints');
+const modal = document.getElementById('curveModal');
+const pointNameInput = document.getElementById('pointName');
+const btnCancel = document.getElementById('btnCancel');
+const btnAdd = document.getElementById('btnAdd');
+
+// Data storage
+let userPoints = [];
+let tempClickX = 0;
+let selectedCurve = null;
+
+// Event listeners
+cbMust.addEventListener('change', draw);
+cbPerf.addEventListener('change', draw);
+cbAttr.addEventListener('change', draw);
+btnReset.addEventListener('click', () => {
+  cbMust.checked = true;
+  cbPerf.checked = true;
+  cbAttr.checked = true;
+  draw();
+});
+btnClearPoints.addEventListener('click', () => {
+  userPoints = [];
+  draw();
+  updatePointsTable();
+});
+
+// Modal event listeners
+btnCancel.addEventListener('click', closeModal);
+btnAdd.addEventListener('click', addPointToCurve);
+
+// Curve selection in modal
+document.querySelectorAll('.curve-option').forEach(option => {
+  option.addEventListener('click', () => {
+    document.querySelectorAll('.curve-option').forEach(opt => opt.classList.remove('selected'));
+    option.classList.add('selected');
+    selectedCurve = option.dataset.curve;
+  });
+});
+
+// Canvas click handler
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  
+  // Convert to canvas coordinates
+  const canvasX = (x / rect.width) * canvas.width;
+  const normalizedX = (canvasX - margin.left) / plotW;
+  
+  // Only show modal if click is within plot area
+  if (normalizedX >= 0 && normalizedX <= 1) {
+    tempClickX = normalizedX;
+    selectedCurve = null;
+    pointNameInput.value = '';
+    document.querySelectorAll('.curve-option').forEach(opt => opt.classList.remove('selected'));
+    modal.style.display = 'flex';
+    pointNameInput.focus();
+  }
+});
+
+// Coordinate mapping functions
+function mapX(x) {
+  return margin.left + x * plotW;
+}
+
+function mapY(yNorm) {
+  return margin.top + (1 - (yNorm + 1) / 2) * plotH;
+}
+
+// Curve functions
+function performanceY(x) {
+  return -0.95 + 1.9 * x;
+}
+
+function mustBeY(x) {
+  return -0.95 + 0.8 * (1 - Math.exp(-3 * x));
+}
+
+function attractiveY(x) {
+  const a = 2;
+  const num = Math.exp(a * (x - 0.1)) - Math.exp(-0.1 * a);
+  const den = Math.exp(0.9 * a) - Math.exp(-0.1 * a);
+  const base = den !== 0 ? num / den : x;
+  return -0.05 + 1.05 * base;
+}
+
+// Drawing functions
+function drawAxes() {
+  ctx.clearRect(0, 0, W, H);
+  
+  // Axes
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 1;
+  
+  // X axis
+  ctx.beginPath();
+  ctx.moveTo(mapX(0), mapY(0));
+  ctx.lineTo(mapX(1), mapY(0));
+  ctx.stroke();
+  
+  // X axis arrow
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.moveTo(mapX(1), mapY(0));
+  ctx.lineTo(mapX(1) - 12, mapY(0) - 8);
+  ctx.lineTo(mapX(1) - 12, mapY(0) + 8);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Y axis
+  ctx.beginPath();
+  ctx.moveTo(mapX(0.5), mapY(-1));
+  ctx.lineTo(mapX(0.5), mapY(1));
+  ctx.stroke();
+  
+  // Y axis arrow
+  ctx.beginPath();
+  ctx.moveTo(mapX(0.5), mapY(1));
+  ctx.lineTo(mapX(0.5) - 8, mapY(1) + 12);
+  ctx.lineTo(mapX(0.5) + 8, mapY(1) + 12);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Labels
+  ctx.fillStyle = '#111';
+  ctx.font = '13px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('Requisito no cumplido', mapX(0), mapY(0) + 20);
+  ctx.fillText('Requisito cumplido', mapX(1), mapY(0) + 20);
+  
+  ctx.save();
+  ctx.translate(mapX(0.5) - 60, mapY(1));
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillText('Satisfacción del cliente', 0, 0);
+  ctx.restore();
+  
+  ctx.fillText('Cliente satisfecho', mapX(0.5), mapY(1) - 20);
+  ctx.fillText('Cliente insatisfecho', mapX(0.5), mapY(-1) + 30);
+  
+  // Grid lines
+  ctx.strokeStyle = '#e4e7ef';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(mapX(0), mapY(0));
+  ctx.lineTo(mapX(1), mapY(0));
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(mapX(0.5), mapY(-1));
+  ctx.lineTo(mapX(0.5), mapY(1));
+  ctx.stroke();
+}
+
+function drawCurve(fn, color, lineWidth = 2) {
+  ctx.beginPath();
+  for (let i = 0; i <= 1000; i++) {
+    const x = i / 1000;
+    const yVal = fn(x);
+    const px = mapX(x);
+    const py = mapY(yVal);
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+}
+
+function annotateText() {
+  ctx.fillStyle = '#222';
+  ctx.font = '14px Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText('Attractive requirements', mapX(0.03), mapY(0.7));
+  ctx.fillText('Performance requirements', mapX(0.65), mapY(0.85));
+  ctx.fillText('Must-be requirements', mapX(0.55), mapY(-0.6));
+}
+
+function drawUserPoints() {
+  userPoints.forEach((point, index) => {
+    const px = mapX(point.x);
+    const py = mapY(point.y);
+    
+    // Draw point with curve color
+    ctx.fillStyle = point.color;
+    ctx.beginPath();
+    ctx.arc(px, py, 8, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Draw white border
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    
+    // Add point number
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText((index + 1).toString(), px, py + 3);
+    
+    // Draw characteristic name
+    ctx.fillStyle = point.color;
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(point.name, px + 12, py - 8);
+    
+    // Draw curve type
+    ctx.fillStyle = '#666';
+    ctx.font = '10px Arial';
+    let curveLabel = '';
+    switch (point.curve) {
+      case 'must': curveLabel = 'Must-be'; break;
+      case 'performance': curveLabel = 'Performance'; break;
+      case 'attractive': curveLabel = 'Attractive'; break;
+    }
+    ctx.fillText(curveLabel, px + 12, py + 6);
+  });
+}
+
+// Get curve descriptions
+function getCurveDescription(curveType) {
+  switch(curveType) {
+    case 'must':
+      return 'Requisito básico e implícito. Su ausencia causa gran insatisfacción, pero su presencia no genera satisfacción adicional.';
+    case 'performance':
+      return 'Requisito lineal y explícito. Cuanto mejor se implemente, mayor será la satisfacción del cliente.';
+    case 'attractive':
+      return 'Requisito inesperado que genera deleite. Su ausencia no causa insatisfacción, pero su presencia sorprende positivamente.';
+    default:
+      return '';
+  }
+}
+
+// Update points table
+function updatePointsTable() {
+  const tableBody = document.getElementById('pointsTableBody');
+  
+  if (userPoints.length === 0) {
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="6" class="empty-state">
+          No hay características agregadas aún. Haga clic en el gráfico para comenzar.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+  
+  const curveNames = {
+    'must': 'Must-be',
+    'performance': 'Performance', 
+    'attractive': 'Attractive'
+  };
+  
+  tableBody.innerHTML = userPoints.map((point, index) => `
+    <tr>
+      <td style="font-weight:bold;color:${point.color}">${index + 1}</td>
+      <td style="font-weight:500">${point.name}</td>
+      <td style="color:${point.color};font-weight:500">${curveNames[point.curve]}</td>
+      <td style="font-size:12px;line-height:1.4">${getCurveDescription(point.curve)}</td>
+      <td style="font-family:monospace">${point.x.toFixed(3)}</td>
+      <td style="font-family:monospace">${point.y.toFixed(3)}</td>
+    </tr>
+  `).join('');
+}
+
+function draw() {
+  drawAxes();
+  annotateText();
+  
+  // Draw curves
+  if (cbMust.checked) {
+    drawCurve(mustBeY, 'crimson', 2.5);
+  }
+  if (cbPerf.checked) {
+    drawCurve(performanceY, 'steelblue', 2);
+  }
+  if (cbAttr.checked) {
+    drawCurve(attractiveY, 'seagreen', 2.5);
+  }
+  
+  // Center point
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.arc(mapX(0.5), mapY(0), 3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Draw user points
+  drawUserPoints();
+}
+
+// Modal functions
+function closeModal() {
+  modal.style.display = 'none';
+}
+
+function addPointToCurve() {
+  if (!selectedCurve) {
+    alert('Por favor selecciona un tipo de curva');
+    return;
+  }
+  
+  const name = pointNameInput.value.trim() || `Característica ${userPoints.length + 1}`;
+  
+  // Calculate Y position based on selected curve
+  let yValue, color;
+  switch (selectedCurve) {
+    case 'must':
+      yValue = mustBeY(tempClickX);
+      color = 'crimson';
+      break;
+    case 'performance':
+      yValue = performanceY(tempClickX);
+      color = 'steelblue';
+      break;
+    case 'attractive':
+      yValue = attractiveY(tempClickX);
+      color = 'seagreen';
+      break;
+  }
+  
+  userPoints.push({
+    x: tempClickX,
+    y: yValue,
+    name: name,
+    curve: selectedCurve,
+    color: color
+  });
+  
+  closeModal();
+  draw();
+  updatePointsTable();
+}
+
+// Initial render
+draw();
+updatePointsTable();
+
+// Handle window resize
+window.addEventListener('resize', draw);
+</script>
+</body>
+</html>
